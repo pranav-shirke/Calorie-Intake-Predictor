@@ -1,0 +1,691 @@
+---
+title: "Calorie Intake Predictor"
+output: 
+  flexdashboard::flex_dashboard:
+     orientation: rows
+      # navbar:
+      #  - { title: "About", href: "#Including Plots", align: left }
+
+runtime: shiny
+
+#output: html_document
+---
+
+
+
+
+<style>
+.navbar {
+  background-color:	#e74c3c;
+  border-color: #2c3e50;
+  font-size: 17px;
+  color: black;
+},
+.navbar-default .navbar-brand{color: black;}
+
+
+</style>
+
+```{css}
+.code{
+  background-color: "red";
+}
+
+<style>
+div.blue pre {background=color:lightblue;}
+div.blue pre.r {background=color:blue;}
+</style>
+```
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(foreign)
+library(dplyr)
+library(ggplot2)
+library(gbm)
+library(randomForest)
+library(plotly)
+#library(shinydashboard)
+library(flexdashboard)
+library(shiny)
+library(randomForest)
+rf  =  readRDS("random_forest.rds")
+ensemble = readRDS("ensemble.rds")
+gbm.fit = readRDS("gbmfit.rds")
+```
+
+
+
+Description
+=============================================================================
+
+<br/><br/> 
+
+***This app predicts calorie intake in KCAL for people based on a wide range  parameters unique to each individual  . It can be used by doctors, nutritionists , healthcare professionals to determine Calorie intake based on a person's demographics,dietary and medical examination data. Individuals can themselves determine their expected calorie intake based on their personal characteristics using the app and then plan the nutrition for  their diet around this value . ***
+
+<br/><br/> 
+
+
+#### **Using the app**
+#### **The app has 3 sections:** 
+
+#### **1. Parameter Analysis** :
+This part analyses and plots the relationship of  important parameters against the KCAL intake and helps analyze how they affect the calorie intake of an individual . Visualize the relationship of Physical ,Personal/professional and Medical examination parameters here  .
+
+
+#### **2. Predict**:
+In this section, users can predict the KCAL intake based on their physical characteristics , medical history , professional characteristics  ,  personal life , Habits  and Behaviours .
+The app  asks the  user to enter his data and gives the predicted  KCAL intake and displays the 
+model performance as well .
+Users can select from Random Forest or Gradient Boosting algorithms to perform the prediction .
+One can easily observe  the  strong impact of these parameters on human KCAL consumption , by varying the parameters and observing the change in predicted  values calorie consumption .
+
+
+#### **3. About**:
+
+
+The section describes the motivation for the app and the  models used for prediction. 
+It also specifies the parameters used for prediction .
+
+The data was split 80:20 into train and test for validation in the data modelling file .
+The train data value for KCAL ranges from 227 to 8367 .
+This  data was used to generate two predictive  models :
+
+- **Random Forest**
+- **Gradient Boosting**
+
+
+
+
+
+
+Parameter Analysis
+=============================================================================
+
+
+
+```{r  echo=FALSE}
+
+mod_dat = readRDS("data.rds")
+
+```
+
+
+**Relationship between the predictor variables and the Calorie intake**
+
+
+
+Note : Due to the large amount of survey data Please allow a few seconds for the plots to load after you click each tab , I incorporte all the data of  9400 people to ensure there is no bias and the data is correctly modelled  
+
+Row {.tabset}
+------
+
+
+### Physical Characteritics
+
+
+#### Weight
+
+```{r echo= FALSE}
+renderPlotly(ggplotly(ggplot(mod_dat,aes(Weight,avgKCAL,color = "red"))+geom_point(alpha=0.8,size= 0.9,na.rm=TRUE) + xlab("Weight") + ylab("KCAL")))
+                    
+```
+
+
+
+#### Height
+
+```{r echo= FALSE}
+renderPlotly(ggplotly(ggplot(mod_dat,aes(Height,avgKCAL,color = "blue"))+geom_point(alpha=0.8,size= 0.9,na.rm=TRUE) +xlab("Height") + ylab("KCAL")))
+```
+
+
+#### BMR 
+
+```{r echo= FALSE}
+
+renderPlotly(ggplotly(ggplot(mod_dat,aes(BMR,avgKCAL,color = "red"))+geom_point(alpha=0.8,size= 0.9,na.rm=TRUE)  + xlab("BMR") + ylab("KCAL")))
+                    
+```
+
+
+### Personal/professional characteristics
+
+
+#### Sex
+
+```{r echo= FALSE}
+renderPlotly(ggplotly(ggplot(mod_dat,aes((Sex),avgKCAL,color = as.factor(Sex)))+geom_jitter(alpha=0.8,size= 0.9,na.rm=TRUE) +xlab("Sex") + ylab("KCAL")))
+
+```
+
+
+#### Physical Activity/Exercise
+
+```{r echo= FALSE}
+renderPlotly(ggplotly(ggplot(mod_dat,aes((Vigorousrecreationalactivities),avgKCAL,color = as.factor( Vigorousrecreationalactivities)))+geom_jitter(alpha=0.8,size= 0.9,na.rm=TRUE) + theme(legend.title=element_blank()) + xlab("Physical Activity/Sports/Exercise") + ylab("KCAL")))
+```
+
+
+#### BMI
+```{r echo= FALSE}
+renderPlotly(ggplotly(ggplot(mod_dat,aes((BMI),avgKCAL,color = "red"))+geom_point(alpha=0.8,size= 0.9,na.rm=TRUE)  + xlab("BMI") + ylab("KCAL")))
+```
+
+
+
+### Medical Examination Status
+
+
+#### Smoker Status 
+
+```{r echo= FALSE}
+renderPlotly(ggplotly(ggplot(mod_dat,aes(SmokerStatus,avgKCAL,color = as.factor(SmokerStatus)))+geom_jitter(alpha=0.8,size= 0.9,na.rm=TRUE)+ theme(axis.text.x = element_text(angle = 90, hjust = 1)) + theme(legend.title=element_blank()) + xlab("Smoker Status")))
+                    
+```
+
+
+#### Cholestrol Status
+
+```{r echo= FALSE}
+renderPlotly(ggplotly(ggplot(mod_dat,aes(cholstatus,avgKCAL,color = as.factor(cholstatus)))+geom_jitter(alpha=0.8,size= 0.9,na.rm=TRUE)+ theme(axis.text.x = element_text(angle = 90, hjust = 1)) + theme(legend.title=element_blank()) + xlab("Cholestrol Status") + ylab("KCAL")))
+```
+
+
+#### Diabetes Status
+
+
+```{r echo= FALSE}
+renderPlotly((ggplotly(ggplot(mod_dat,aes(DiabetesStatus ,avgKCAL,color = as.factor(DiabetesStatus )))+geom_jitter(alpha=0.8,size= 0.9,na.rm=TRUE) + labs(fill="") + theme(legend.title=element_blank()) + xlab("Diabetes Status") + ylab("KCAL")))
+            )
+```
+
+
+
+
+
+Predict
+=============================================================================
+
+
+Inputs {.sidebar data-width=300}
+-----------------------------------------------------------------------
+ 
+```{r echo = FALSE}
+
+
+numericInput("age","Age",0 )
+numericInput("height","Height in cm",0)
+numericInput("weight","Weight in kg",0)
+numericInput("bmi","BMI (kg/m2) ",0)
+
+
+selectInput(
+  "sex",
+  label= "sex",
+  choices = list("Male" = "Male",
+                       "Female" = "Female"),
+  selected = "Male",
+)
+
+
+selectInput(
+  "race",
+  label= "Race",
+  choices = levels(mod_dat$Race),
+  selected =  "Non-Hispanic Asian",
+)
+
+
+
+
+selectInput(
+  "smokerstatus",
+  label= ("Smoking Status"),
+  choices = list("Non smoker"= "Non smoker" ,"Every day smoker" = "Every day smoker",
+                       "Former smoker" = "Former smoker","Someday smoker"="Someday smoker"),
+  selected = "Non smoker"  ,
+)
+
+selectInput(
+  "diabetesstatus",
+  label= ("Diabetes Status "),
+  choices = list("Yes" = "Yes",
+                       "No" = "No",
+                 "Borderline" ="Borderline"),
+  selected = "No"  ,
+)
+
+
+
+
+#textInput("nocigsmoked","Number of Cigarretes smoked")
+
+
+selectInput( "martialstatus"
+  ,label= (" What is your martial status ?"),
+  choices = list("Divorced" = "Divorced",
+                       "Living with partner" = "Living with partner",
+                   "Never Married" =  "Never Married",
+                  "Seperated"="Seperated",
+                  "Widowed" =  "Widowed",
+                 "Married" = "Married"  ),
+  selected = "Never Married"  ,
+)
+
+
+
+selectInput( "cholstatus"
+  ,label= (" Do you have high cholestrol ?"),
+  choices = list("High (>=240)" = "High",
+                       "Normal(<240)" = "normal"),
+  selected = "Normal(<240)"  ,
+)
+
+
+
+selectInput( "bpstatus"
+  ,label= (" Do you have High blood pressure?"),
+  choices = list("Normal (SYS<=129 and DI<80)" = "normal",
+                 "Elevated (130<=SYS<=139 and 80<=DI<=89)" = "high1",
+                 "Hypertension (SYS<=140 and 90<=DI)" = "high2"),
+  selected = "Normal (SYS<=129 and DI<80)"  ,
+)
+
+
+
+
+
+#radioButtons("choice", label = (" Display Options:"),
+#    choices = list("Male" = "Male",
+#                       "Female" = "Female"),
+#    selected =  "Male")
+
+
+selectInput(
+   "vigorousworkactivity",
+   label = " Does your work involve vigorous-intensity activity that causes large increases in breathing or heart rate like carrying or lifting heavy loads,",
+  choices = list("Yes" = "Yes",
+                       "No" = "No"),
+  selected = "No"  ,
+)
+
+
+
+
+selectInput( "vigorousrecreationalactivities"
+  ,label= (" Do you do any vigorous-intensity sports, fitness, or recreational activities that cause large increases in breathing or heart rate like running or basketball ?"),
+  choices = list("Yes" = "Yes",
+                       "No" = "No"),
+  selected = "No"  ,
+)
+
+
+
+selectInput( "model"
+  ,label= (" Select the model ?"),
+  choices = list("RandomForest" = "RandomForest",
+                      "Gradient Boosting" = "Gradient Boosting"),
+  selected = "RandomForest"  ,
+)
+
+ actionButton('predict', 'Predict')
+```
+
+
+
+
+
+Row {data-height=700} 
+-----------------------------------------------------------------------
+
+
+### Performance
+```{r echo = FALSE}
+
+
+#m1 = load(file ="gbm.rda",.GlobalEnv)
+
+#val = predict(m,X_test[1,])
+#renderText(val)
+#X = mod_dat
+#Y = X$avgKCAL
+#X$avgKCAL  = NULL
+#val = floor(length(Y)*.80)
+#index = sample(1:length(Y),size=val)
+#X_train= X[index,]
+#X_test= X[-index,]
+#Y_train = Y[index]
+#Y_test = Y[-index]
+
+
+library(shinyjs)
+shinyjs::useShinyjs(rmd=TRUE)
+#reactive(as.factor(input$race))
+#reactive(as.factor(input$Vigorousrecreationalactivities))
+#reactive(as.factor(input$bpstatus))
+#reactive(as.factor(input$diabetesstatus))
+#reactive(as.factor(input$cholstatus))
+#reactive(as.factor(input$race))
+#reactive(as.factor(input$sex))
+
+
+Xplt = mod_dat
+Yplt = Xplt$avgKCAL
+Xplt$avgKCAL  = NULL
+Xplt$KCAL1=NULL
+Xplt$KCAL2 =NULL
+val = floor(length(Yplt)*.80)
+index = sample(1:length(Yplt),size=val)
+X_trainplt= Xplt[index,]
+X_testplt= Xplt[-index,]
+Y_trainplt = Yplt[index]
+Y_testplt = Yplt[-index] 
+
+#predgbm = reactive({predict(gbm.fit,X_testplt)})
+
+
+predgbm = reactive({if(input$model=="RandomForest"){
+    predict(rf,X_testplt)
+   # predict(rf,table_data())
+  }
+  else if(input$model == "Gradient Boosting"){
+    predict(gbm.fit,X_testplt)
+    #predict(gbm.fit,table_data())
+  }})
+
+
+
+
+
+#output$p1 = renderPlot(ggplot() +geom_point(aes(y=Y_testplt,x=predgbm(),color='red')) + scale_y_continuous(breaks=seq(0,8000,by=500)) + scale_x_continuous(breaks=seq(0,3000,by=500)) +xlab('Predicted') + ylab('ActualKCAL') + geom_point(aes(x=2000,y=2000)) + geom_vline(xintercept=1000) )
+
+#plotOutput("p1")
+
+
+
+
+#observeEvent(input$predict, {hide("p1")})
+
+
+renderPlotly(ggplotly(ggplot() +geom_point(aes(y=Y_testplt[0:val()],x=predgbm()[0:val()],color='red'),show.legend = FALSE) + theme(legend.position="none") +xlab('Predicted') + ylab('ActualKCAL') + geom_point(aes(x=as.numeric(val()),y=as.numeric(val()) , label = "predicted"))+ geom_vline(xintercept=val() )))
+
+#plotOutput("p1")
+
+
+#renderPlotly(ggplotly(ggplot() +geom_point(aes(y=Y_testplt[val():(val()+50)],x=predgbm()[val():(val()+50)],color='red')) + scale_y_continuous(breaks=seq(0,8000,by=500)) + scale_x_continuous(breaks=seq(0,3000,by=500)) +xlab('Predicted') + ylab('ActualKCAL') + geom_point(aes(x=val(),y=val())) + geom_vline(xintercept=val())))
+
+
+#plotOutput("p2")
+
+#observeEvent(input$predict, plotOutput("p2"))
+
+
+
+#myplotdata <- eventReactive(input$predict,{
+#    ggplot() +geom_point(aes(y=Y_testplt,x=predgbm(),color='red')) + scale_y_continuous(breaks=seq(0,8000,by=500)) + scale_x_continuous(breaks=seq(0,3000,by=500)) +xlab('Predicted') + ylab('ActualKCAL') + geom_point(aes(x=val(),y=val())) + geom_vline(xintercept=val())
+ # })
+
+#output$p2 = ({renderPlot(myplotdata ())})
+ 
+
+#plotOutput("p2")
+ 
+ 
+
+table_data <- eventReactive(input$predict, {
+ 
+
+  
+  (
+ 
+  
+  x <- data.frame(Age=numeric(),
+                 Race=character(),
+                 Sex=character(),
+                 Weight=numeric(),
+                 Height=numeric(),
+                 BMI = numeric(),
+                 BMR = numeric(),
+                 MartialStatus = character(),
+                 cholstatus = character(),
+                 SmokerStatus = character(),
+                 BPStatus  =character(),
+                 DiabetesStatus  =character(),
+                 VigorousWorkActivity = numeric(),
+                 Vigorousrecreationalactivities= numeric(),
+                 stringsAsFactors=TRUE)
+    )          
+
+
+#x[1,] = c(as.numeric(input$age) , as.factor(input$race),  as.factor(input$sex) , as.numeric(input$weight)  ,as.numeric(input$height), as.numeric(input$bmi),1467.294,as.factor(input$martialstatus) , as.factor (input$cholstatus) ,  as.factor(input$smokerstatus) , as.factor(input$bpstatus) , as.factor(input$diabetesstatus) ,  as.factor(input$vigorousworkactivity) , as.factor(input$vigorousrecreationalactivities))
+
+
+
+#levels(x$Race) = levels(X_test$Race)
+levels(x$Sex) = c( "Female", "Male")
+levels(x$Race) = c( "Mexican American", "Non-Hispanic Asian" ,"Non-Hispanic Black","Non-Hispanic White","Other", "Other Hispanic"  )
+#levels(x$Sex) = levels(X_test$Sex)
+levels(x$cholstatus) = c("High" ,  "normal")
+levels(x$SmokerStatus) =  c( "Every day smoker", "Former smoker"  ,  "Non smoker", "Someday smoker")
+#levels(x$SmokerStatus) =  levels(X_test$SmokerStatus)
+levels(x$DiabetesStatus) =  c("Borderline" ,"No", "Yes" )
+#levels(x$DiabetesStatus) =  levels(X_test$DiabetesStatus)
+levels(x$BPStatus) = c("high1" , "high2" , "normal")
+#levels(x$BPStatus) =  levels(X_test$BPStatus)
+#levels(x$VigorousWorkActivity) =  levels(X_test$VigorousWorkActivity)
+#levels(x$Vigorousrecreationalactivities) =  levels(X_test$Vigorousrecreationalactivities)
+levels(x$MartialStatus) =  c("Divorced" , "Living with partner" ,"Married",  "Never Married"      
+,"Seperated" , "Widowed" )
+#levels(x$MartialStatus) =  levels(X_test$MartialStatus)
+vwa =  if ((input$vigorousworkactivity) =="Yes")
+        { as.numeric(1) } else{as.numeric(2)}
+vra =  if ( (input$vigorousrecreationalactivities)=="Yes")
+        {as.numeric(1)}
+        else{as.numeric(2)}
+
+
+
+
+x[1,] = c(as.numeric(input$age) , (input$race),  (input$sex) , as.numeric(input$weight)  ,as.numeric(input$height),(input$bmi),1467.294,(input$martialstatus) , (input$cholstatus) ,  (input$smokerstatus) , (input$bpstatus) , (input$diabetesstatus) ,  vwa , vra)
+x
+
+})
+
+
+
+
+
+#input_dat = reactive(data.frame(Age=input$age ,Sex = input$sex ,Weight = input$weight  ,Height = input$height, BMI=input$bmi, BMR = input$bmr, MartialStatus = input$martialstatus , cholstatus  = input$cholstatus , SmokerStatus = input$smokerstatus ,BPStatus = input$bpstatus , DiabetesStatus= input$diabetesstatus , VigorousWorkActivity= input$VigorousWorkActivity , Vigorousrecreationalactivities = input$Vigorousrecreationalactivities ))
+
+#loadedModel <- readRDS("gbm.rds")
+
+#rf  =  readRDS("random_forest.rds")
+#ensemble = readRDS("ensemble.rds")
+#gbm.fit = readRDS("gbmfit.rds")
+
+val = reactive({if(input$model=="RandomForest"){
+    predict(rf,table_data())
+  }
+  else if(input$model == "Gradient Boosting"){
+   
+    predict(gbm.fit,table_data())
+  }})
+
+
+
+
+
+#output$p2 = renderPlot(ggplot() +geom_point(aes(y=Y_testplt,x=predgbm(),color='red')) + scale_y_continuous(breaks=seq(0,8000,by=500)) + scale_x_continuous(breaks=seq(0,3000,by=500)) +xlab('Predicted') + ylab('ActualKCAL') + geom_point(aes(x=val(),y=val())) + geom_vline(xintercept=val()))
+
+
+
+
+#observeEvent(input$predict,{plotOutput("p2")})
+#observeEvent(input$predict,{show("p2")})
+
+
+#renderPlot(ggplot() +geom_point(aes(y=Y_testplt,x=predgbm(),color='red')) + scale_y_continuous(breaks=seq(0,8000,by=500)) + scale_x_continuous(breaks=seq(0,3000,by=500)) +xlab('Predicted') + ylab('ActualKCAL') + geom_point(aes(x=val(),y=val())) + geom_vline(xintercept=val()))
+
+
+
+
+
+#eventReactive(input$predict, {
+#  valueBoxOutput("kcal")
+#  show("kcal")})
+
+#reactive(table_data())
+#renderText("values")
+#v = renderText(val())
+#tags$style(".small-box.bg-yellow { background-color: #FFFF00 !important; color: #000000 !important; }")
+
+#renderGauge(gauge(91, min = 0, max = 100, symbol = '%', 
+#))
+
+#rm = reactive(max(sapply(predgbm(), max)))
+#rmin = reactive(min(sapply(predgbm(), min)))
+
+#renderGauge(gauge(as.numeric(val()), min = rmin(), max = rm(), 
+#))
+
+#library(shinydashboard)
+
+#output$kcal = renderValueBox(valueBox((val()),subtitle = "Calories(KCAL) predicted" ,icon = icon("fire"), color =  "blue"  ))
+
+
+#valueBoxOutput("kcal")
+#valueBoxOutput("t")
+
+
+
+
+```
+
+
+
+
+Row { data-width=700} 
+-----------------------------------------------------------------------
+
+### Value
+
+```{r echo=FALSE ,class.source="code"}
+
+library(shinydashboard)
+
+
+output$t = renderValueBox(valueBox("Enter your details and Hit Predict !",subtitle = "Calories(KCAL) predicted" ,icon = icon("fire"), color =  "blue"  ))
+
+#output$kcal = renderValueBox(valueBox((val()),subtitle = "Calories(KCAL) predicted" ,icon = icon("fire"), color =  "blue"  ))
+
+
+valueBoxOutput("t")
+
+
+observeEvent(input$predict, {hide("t")})
+#observeEvent(input$predict, {valueBoxOutput("kcal")
+#show("kcal")})
+
+
+renderValueBox(valueBox((val()),subtitle = "Calories(KCAL) predicted" ,icon = icon("fire"), color =  "blue"  ))
+ 
+
+```
+
+
+### Gauge
+
+
+```{r echo=FALSE}
+
+rm = reactive(max(sapply(predgbm(), max)))
+rmin = reactive(min(sapply(predgbm(), min)))
+
+renderGauge(gauge(as.numeric(val()), min = rmin(), max = rm(), 
+))
+
+
+
+```
+
+
+
+
+About
+=============================================================================
+
+
+
+
+ - Created by **Pranav Shirke**
+
+This app predicts calorie intake in KCAL using random forest, gradient boosting . The algorithm was modelled on latest survey data obtained from National Health and Nutritional Examination Survey 2017-18(NHANES) . Interesting insights were derived on the impact of weight, smoking , bmr , age, work activity and many more on the KCAL intake.
+
+
+
+ - *The completed data is sourced from CDC National health and Nutrition Examination Survey for the period of 2017-2018*
+
+ - This app draws inference from a larger data set of  over 9400 human survey records of which  7400  are used for training and 2000 for validation , due to the large scale of data the data predictions models are  trained and stored in  separate .rds files
+
+
+ - The status for smoking , blood pressure , Cholesterol were set based on the survey questionnaire data , body measurements data, demographics, diabetes and smoking data .
+ 
+- This  app  predicts avergae Calorie intake in KCAL for people of varying age,Sex , height ,Weight, Social  and economic characteritics . The data was cleansed and imputed appropriately using sophisticated techniques , the required parameters were selected and status values were set for variables like blood pressure , smoking , diabetes , based on CDC recommendations , for users to input their appropriate.
+
+- The app calculates BMR based on Age , Hieght , Weight and Sex for the user.
+
+
+- The app uses human survey data , which is highly subjective and difficult to model as easch individual has his own  preferences for Calorie Intake  in addition to effect of common characteristics like age ,sex,height,weight for each individual .
+
+- The aim is to study  the impact of primary chracteristics like Age ,Sex , Height ,Weight , BMI, BMR on the calorie intake .
+
+- The aim is also to show the effect of  interesting parameters like   Blood Pressure, Diabetes Status, Smoker Status, Cholesterol Status , Heavy Physical Work Activity , Physical Exercise/Cycling  ,Marital Status on the KCAL intake , the KCAL intake showed variations for different values of these parameters .
+
+
+- 14 parameters were used from the NHANES survey data , which were identified to have the most impact on the Calorie(KCAL) intake , they were:
+
+1. Age
+2. Sex
+3. Height
+4. Weight
+5. BMI
+6. BMR
+7. Smoker Status
+8. Blood pressure Levels
+8. Cholesterol Status
+9. Diabetes Status
+10. Marital Status
+11. Vigorous Physical Activity
+12. Vigorous Recreational Activity (Sport/Fitness)
+13. Race
+
+
+
+- We use three files in total , one for data  and 2 to store the two prediction models developed, which are later loaded at runtime .
+
+1. **data.rds**: Stores the cleaned , imputed data .
+2. **random_forest.rds** : Stores the random forest model which is loaded at runtime.
+3. **gbmfit.rds** : Stores the Gradient boosting model which is loaded at runtime . 
+
+
+
+
+
+**References** :
+
+- [https://wwwn.cdc.gov/nchs/nhanes/continuousnhanes/default.aspx?BeginYear=2017](https://wwwn.cdc.gov/nchs/nhanes/continuousnhanes/default.aspx?BeginYear=2017)
+- [https://plotly.com/r/](https://plotly.com/r/)
+- [https://pkgs.rstudio.com/flexdashboard/articles/flexdashboard.html](https://pkgs.rstudio.com/flexdashboard/articles/flexdashboard.html)
+- 
+
+
+
+
+
+
+
+
+
+
+

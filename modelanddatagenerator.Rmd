@@ -1,0 +1,368 @@
+---
+title: "models"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(foreign)
+library(mice)
+library(dplyr)
+library(randomForest)
+library(gbm)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+
+```{r  echo=FALSE}
+#demographics1718 = read.xport("DEMOGRAPHICS17-18.XPT") #Done
+#bloodpressure1718 = read.xport("BloodPressure17-18.XPT") #Done
+#bodymeasurements1718 = read.xport("Bodymeasurements17-18.XPT")  #Done
+#nutrientsintakeday11718 = read.xport("TotalNutrientsIntakeday1.XPT")  #Done
+#nutrientsintakeday21718 = read.xport("TotalNutrientsIntakeday2.XPT")
+#smoking1718 = read.xport("Smokers1718.XPT")  #Done
+#diabetes1718 = read.xport("diabetes17-18.XPT")  #Done
+#alcoholuse1718 = read.xport("Alcoholuse17-18.XPT")
+#cholestrollevels1718 = read.xport("TCHOL_J.XPT")
+
+# Read in the Raw Data 
+demographics1718 = read.xport("demographics17-18.XPT") #Done
+bloodpressure1718 = read.xport("bloodpressure17-18.XPT") #Done
+bodymeasurements1718 = read.xport("bodymeasurements17-18.XPT")  #Done
+nutrientsintakeday11718 = read.xport("totalnutrientsIntakeday1.XPT")  #Done
+nutrientsintakeday21718 = read.xport("totalnutrientsIntakeday2.XPT")
+smoking1718 = read.xport("smokers1718.XPT")  #Done
+diabetes1718 = read.xport("diabetes17-18.XPT")  #Done
+alcoholuse1718 = read.xport("alcoholuse17-18.XPT")
+cholestrollevels1718 = read.xport("cholestrol17-18.XPT")
+physicalactivity1718 = read.xport("physicalactivity.XPT")
+
+#Demograhics Data
+demographics1718 = demographics1718 %>% select(SEQN, RIAGENDR , RIDAGEYR, RIDRETH3 ,DMDCITZN , DMDMARTL)
+demographics1718 = demographics1718 %>% rename (Sex =RIAGENDR , Age =  RIDAGEYR , Race= RIDRETH3 , Citizenship = DMDCITZN , MartialStatus = DMDMARTL )
+
+demographics1718 = demographics1718 %>% mutate(Race  =  ifelse(Race == 1, "Mexican American",ifelse(Race == 2 , "Other Hispanic" ,  ifelse(Race==3,"Non-Hispanic White",ifelse(Race==4,"Non-Hispanic Black",ifelse(Race==6,"Non-Hispanic Asian",ifelse(Race==7,"Other",NA)))))))
+ demographics1718 = demographics1718 %>% mutate(Citizenship  =  ifelse(Citizenship == 1, "American",ifelse(Citizenship == 2 , "Non_American" , NA)))
+ demographics1718 = demographics1718 %>% mutate(Sex = ifelse(Sex == 1 ,"Male",ifelse(Sex==2,"Female",NA)))
+ demographics1718 = demographics1718 %>% mutate(MartialStatus  =  ifelse(MartialStatus == 1, "Married",ifelse(MartialStatus  == 2 , "Widowed" ,  ifelse(MartialStatus ==3,"Divorced",ifelse(MartialStatus ==4,"Seperated",ifelse(MartialStatus ==5,"Never Married",ifelse(MartialStatus ==6,"Living with partner",NA)))))))
+
+surveydat = demographics1718
+
+
+#Body measurements
+bodymeasurements1718 = bodymeasurements1718 %>% select(SEQN,BMXWT,BMXHT, BMXBMI)
+bodymeasurements1718 = bodymeasurements1718 %>% rename (Weight = BMXWT, Height =  BMXHT  , BMI = BMXBMI)
+
+# Combine data 
+surveydat = left_join(surveydat,bodymeasurements1718,by="SEQN")
+
+
+#Nutrients Intake Day 1
+nutrientsintakeday11718 = (nutrientsintakeday11718) %>% select( SEQN, DR1TKCAL, DR1TPROT, DR1TCARB, DR1TTFAT , DR1TALCO)
+nutrientsintakeday11718 = (nutrientsintakeday11718) %>% mutate(totalcal1 = 4*(DR1TCARB + DR1TPROT)+ 9*(DR1TTFAT) + 7*(DR1TALCO))
+nutrientsintakeday11718 = (nutrientsintakeday11718)  %>% rename (KCAL1 = DR1TKCAL, PROTIEN1 =  DR1TPROT ,CARBOHYDRATES1 = DR1TCARB , FAT1 = DR1TTFAT , ALCOHOL1 = DR1TALCO)
+
+
+
+#Nutrients Intake Day 2
+nutrientsintakeday21718 = (nutrientsintakeday21718) %>% select( SEQN, DR2TKCAL, DR2TPROT, DR2TCARB, DR2TTFAT , DR2TALCO)
+nutrientsintakeday21718 = (nutrientsintakeday21718) %>% mutate(totalcal2 = 4*(DR2TCARB + DR2TPROT)+ 9*(DR2TTFAT) + 7*(DR2TALCO))
+nutrientsintakeday21718 = (nutrientsintakeday21718)  %>% rename (KCAL2 = DR2TKCAL, PROTIEN2 =  DR2TPROT, CARBOHYDRATES2 = DR2TCARB , FAT2 = DR2TTFAT , ALCOHOL2 = DR2TALCO)
+
+nutrientsfinal = left_join(nutrientsintakeday11718,nutrientsintakeday21718,by='SEQN')
+
+
+# Combine  data 
+surveydat = left_join(surveydat,nutrientsfinal,by="SEQN")
+
+
+#Smoking Status
+smokingstatus1718 = smoking1718 %>% select(SEQN, SMQ020, SMQ040 , SMQ890)
+smokingstatus1718 = smokingstatus1718 %>%  rename(Smoked_at_least_100_cigarettes_in_life = SMQ020 , Do_you_now_smoke_cigarettes =SMQ040 , Ever_Smoked_a_cigarette = SMQ890)
+
+
+smokingstatus1718 = smokingstatus1718 %>%  mutate(SmokerStatus = ifelse((Smoked_at_least_100_cigarettes_in_life == 1) & (Do_you_now_smoke_cigarettes == 1), "Every day smoker",ifelse((Smoked_at_least_100_cigarettes_in_life == 1) & (Do_you_now_smoke_cigarettes == 2), "Someday smoker",ifelse((Smoked_at_least_100_cigarettes_in_life == 1) & (Do_you_now_smoke_cigarettes == 3),"Former smoker",ifelse((Smoked_at_least_100_cigarettes_in_life == 1) & (Do_you_now_smoke_cigarettes > 3),NA,ifelse((Smoked_at_least_100_cigarettes_in_life == 2) | (Ever_Smoked_a_cigarette = 2),"Non smoker",NA))))))
+
+
+# Combine  data 
+surveydat = left_join(surveydat,smokingstatus1718,by="SEQN")
+
+
+diabetesstatus1718 = diabetes1718 %>% select(SEQN, DIQ010)
+diabetesstatus1718 = diabetesstatus1718 %>%  rename(DiabetesStatus = "DIQ010")
+diabetesstatus1718 = diabetesstatus1718 %>%  mutate(DiabetesStatus = ifelse(DiabetesStatus== 1,"Yes",ifelse(DiabetesStatus==2,"No",ifelse(DiabetesStatus== 3, "Borderline" ,NA))))
+
+# Combine  data 
+surveydat = left_join(surveydat,diabetesstatus1718,by="SEQN")
+
+
+bloodpressure1718 = bloodpressure1718 %>% select(SEQN,BPXSY1,BPXDI1,BPXDI2,BPXSY2,BPXDI3,BPXSY3,BPXSY4,BPXDI4)
+bloodpressure1718 = bloodpressure1718 %>% mutate(AvgSY = rowMeans(.[ , c("BPXSY1","BPXSY2","BPXSY3","BPXSY4")], na.rm=TRUE))
+bloodpressure1718 = bloodpressure1718 %>% mutate(AvgDI = rowMeans(.[ , c("BPXDI1","BPXDI2","BPXDI3","BPXDI4")], na.rm=TRUE))
+bloodpressure1718 = bloodpressure1718 %>% mutate(BPStatus = (ifelse( (AvgSY<=129)  &  (AvgDI<80),"normal",ifelse(((130<= AvgSY & AvgSY <=139 ) | (80<=AvgDI & AvgDI<=89)),"high1",ifelse((140<=AvgSY |  90<=AvgDI),"high2",NA)))))
+
+
+#join data
+ surveydat = left_join(surveydat,bloodpressure1718,by="SEQN")
+
+ 
+#Physical activity 
+
+physicalactivity1718 =  physicalactivity1718  %>% select( SEQN , PAQ605,PAQ635, PAQ650 )
+physicalactivity1718 =  physicalactivity1718  %>% rename(VigorousWorkActivity = PAQ605 ,WalkBicycle = PAQ635, Vigorousrecreationalactivities = PAQ650 )
+
+
+physicalactivity1718 =  physicalactivity1718  %>% mutate(VigorousWorkActivity = ifelse(VigorousWorkActivity ==1,
+"Yes",ifelse(VigorousWorkActivity ==2 ,"No",NA)))                                                       
+physicalactivity1718 =  physicalactivity1718  %>% mutate(Vigorousrecreationalactivities = ifelse(Vigorousrecreationalactivities ==1,
+"Yes",ifelse(Vigorousrecreationalactivities ==2 ,"No",NA)))                                                                        
+                                                                                  
+#Join data
+surveydat = left_join(surveydat,physicalactivity1718,by="SEQN")
+
+
+cholestrollevels1718 = cholestrollevels1718 %>% select(SEQN, LBXTC)
+cholestrollevels1718 = cholestrollevels1718 %>% mutate(cholstatus =  ifelse(LBXTC >= 240, "High", ifelse(LBXTC < 240 , "normal",NA)))
+
+# join data 
+surveydat = left_join(surveydat,cholestrollevels1718,by="SEQN")
+
+
+#Alcohol
+alcoholuse1718 = alcoholuse1718 %>% select(SEQN,ALQ121)
+alcoholuse1718 = alcoholuse1718 %>% rename(past12monthsalcoholdrink = ALQ121)
+
+#Alcohol use 
+surveydat = left_join(surveydat,alcoholuse1718,by="SEQN")
+
+
+#BMR calculation 
+
+ 
+ surveydat = surveydat %>% mutate(BMR = ifelse(Sex ==1, (88.362 + (13.397*Weight) + (4.799* Height) - (5.677*Age)),(447.593+(9.247*Weight)+(3.098*Height)-(4.330*Age)) ))
+ 
+ 
+ 
+ 
+```
+
+
+
+
+
+
+```{r  echo=FALSE}
+#Select required data and putting in observed_dat
+ 
+ 
+ observed_dat = surveydat %>% select(Age,Race,Sex,Weight,Height,BMI,BMR,MartialStatus,cholstatus,SmokerStatus,BPStatus,DiabetesStatus,VigorousWorkActivity,Vigorousrecreationalactivities,KCAL1,KCAL2)
+ 
+ 
+ mod_dat = observed_dat
+ 
+ 
+  #Convert to factor variable
+ 
+ mod_dat = mod_dat %>% mutate_if(is.character, as.factor)
+ 
+  #Remove NA's
+ 
+ imputed_Data <- mice(mod_dat
+                     , m=5, maxit = 50, seed = 500)
+ 
+ 
+ #Select completedata without na's
+ 
+completeData <- complete(imputed_Data2,2)
+
+completeData = completeData %>% mutate(avgKCAL = (KCAL1+KCAL2)/2)
+
+```
+
+
+
+```{r  echo=FALSE}
+# Train test split 
+ 
+
+X = completeData
+Y = X$avgKCAL
+X$avgKCAL  = NULL
+X$KCAL1=NULL
+X$KCAL2 =NULL
+val = floor(length(Y)*.80)
+index = sample(1:length(Y),size=val)
+X_train= X[index,]
+X_test= X[-index,]
+Y_train = Y[index]
+Y_test = Y[-index] 
+
+```
+
+
+
+```{r}
+ #Remove NA's
+ 
+ #imputed_Data <- mice(mod_dat
+#                     , m=5, maxit = 50, seed = 500)
+ 
+ #completeData <- complete(imputed_Data,2)
+```
+
+
+
+
+
+```{r}
+#str(X_train)
+
+apply(X_train, 2, function(x) any(is.na(x)))
+#str(X_train)
+```
+
+
+
+```{r}
+
+kcalf = randomForest(x = X_train, y = Y_train, mtry = 5, 
+                                                             importance = TRUE, ntrees = 500)
+```
+
+```{r}
+predictionsrf <- predict(kcalf, X_test)
+result <- X_test
+result['KCAL'] <- Y_test
+result['predictionrf']<-  predictionsrf
+
+#Test
+print(paste0('MSE: ' ,caret::postResample(predictionsrf ,  Y_test)['RMSE'] ))
+print(paste0('R2: ' ,caret::postResample(predictionsrf , Y_test)['Rsquared'] ))
+
+#Train
+#print(paste0('MSE: ' ,caret::postResample(kcalrf$predicted ,  Y_train)['RMSE']^2 ))
+#print(paste0('R2: ' ,caret::postResample(kcalrf$predicted , Y_train)['Rsquared'] ))
+```
+
+
+```{r}
+ggplot(  ) + 
+    geom_point( aes(x = X_test$Height, y = Y_test, color = 'red', alpha = 0.5) ) + 
+    geom_point( aes(x = X_test$Height , y = predictionsrf, color = 'blue',  alpha = 0.5)) + 
+    labs(x = "Height", y = "KCAL", color = "", alpha = 'Transperency') +
+    scale_color_manual(labels = c( "Predicted", "Real"), values = c("blue", "red")) 
+```
+
+
+
+```{r}
+
+#GBM model
+gbm.fit <- gbm(
+     formula = Y_train ~ .,
+     distribution = "gaussian",
+     data = X_train,
+     n.trees = 5000,
+     interaction.depth = 3,
+     shrinkage = 0.1,
+     cv.folds = 5,
+     n.cores = NULL, # will use all cores by default
+     verbose = FALSE
+ )
+
+
+```
+
+```{r}
+#Ensemble 
+
+#GBM fit pred
+predictionsgbm <- predict(gbm.fit, X_test)
+result <- X_test
+result['KCAL'] <- Y_test
+result['predictiongbm']<-  predictionsgbm
+
+
+#train_d = X_train
+#train_d['predictionsrf'] = predict(kcalf, X_train)
+#train_d['predictionsgbm'] = predict(gbm.fit, X_train)
+
+
+
+#predictors_out<-c('predictionsrf','predictionsgbm')
+
+#finalfit = glm(Y_train ~ . ,data = train_d[,predictors_out])
+
+
+#predictionsfinal <- predict(finalfit, X_test)
+#result['predictionfinal']<-  predictionsfinal
+
+
+#print(paste0('MSE: ' ,caret::postResample(predictionsfinal ,  Y_test)['RMSE'] ))
+#print(paste0('R2: ' ,caret::postResample(predictionsfinal , Y_test)['Rsquared'] ))
+
+
+print(paste0('MSE: ' ,caret::postResample(predictionsgbm ,  Y_test)['RMSE'] ))
+print(paste0('R2: ' ,caret::postResample(predictionsgbm , Y_test)['Rsquared'] ))
+
+```
+
+
+```{r}
+ predictionsfinal
+
+ggplot(  ) + 
+    geom_point( aes(x = X_test$Height, y = Y_test, color = 'red', alpha = 0.5) ) + 
+    geom_point( aes(x = X_test$Height , y = predictionsgbm, color = 'blue',  alpha = 0.5)) + 
+    labs(x = "Height", y = "KCAL", color = "", alpha = 'Transperency') +
+    scale_color_manual(labels = c( "Predicted", "Real"), values = c("blue", "red")) 
+
+```
+
+
+
+```{r}
+
+
+#Save the models
+
+saveRDS(kcalf, file = "random_forest.rds")
+saveRDS(gbm.fit, file = "gbmfit.rds")
+#saveRDS(finalfit, file = "ensemble.rds")
+
+
+#saveRDS(kcalf, file = "random_forest2.rds")
+#saveRDS(gbm.fit, file = "gbmfit2.rds")
+#saveRDS(finalfit, file = "ensemble.rds")
+
+```
+
+
+
+
+
+
+
+```{r}
+#Save the data
+saveRDS(completeData, file = "data.rds")
+
+```
+
+
+```{r}
+max(Y_train)
+min(Y_train)
+max(Y_test)
+min(Y_test)
+```
+
+
+
+
+
